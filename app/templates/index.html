@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visit Counter</title>
+<style>
+:root {
+  --bg: #f4f4f1;
+  --card: #ffffff;
+  --ink: #16181d;
+  --muted: #6b6f78;
+  --line: #e4e4df;
+  --accent: #d8432f;
+  --ok: #1f8a5b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1012;
+    --card: #17191c;
+    --ink: #f1f1ee;
+    --muted: #8d919a;
+    --line: #26292e;
+    --accent: #ff6a4d;
+    --ok: #3ccf8e;
+  }
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.card {
+  width: min(440px, 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 12px 32px -12px rgb(0 0 0 / .12);
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.brand { font-weight: 600; color: var(--ink); letter-spacing: -.01em; }
+.status { display: inline-flex; align-items: center; gap: 8px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 18%, transparent); }
+.status.down .dot { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+.label { margin-top: 40px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.count {
+  margin-top: 4px;
+  font-size: clamp(64px, 18vw, 104px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+}
+.count.bump { animation: bump .35s ease-out; }
+@keyframes bump { 40% { transform: translateY(-4px); color: var(--accent); } }
+.sub { margin-top: 12px; color: var(--muted); }
+button {
+  margin-top: 32px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--card);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .1s, opacity .2s;
+}
+button:hover { opacity: .9; }
+button:active { transform: scale(.98); }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.meta {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  font-size: 13px;
+}
+.meta dt { color: var(--muted); }
+.meta dd { font-family: ui-monospace, "SF Mono", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .count.bump { animation: none; } }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="top">
+    <span class="brand">Visit Counter</span>
+    {% if visits is not none %}
+    <span class="status" id="status"><span class="dot"></span><span id="status-text">Redis connected</span></span>
+    {% else %}
+    <span class="status down" id="status"><span class="dot"></span><span id="status-text">Redis unavailable</span></span>
+    {% endif %}
+  </div>
+  <p class="label">Total visits</p>
+  <p class="count" id="count" aria-live="polite">{{ "{:,}".format(visits) if visits is not none else "—" }}</p>
+  <p class="sub" id="sub">{% if visits is not none %}You are visitor #{{ "{:,}".format(visits) }}.{% else %}The counter store can't be reached.{% endif %}</p>
+  <button id="add" type="button" {% if visits is none %}disabled{% endif %}>Add a visit</button>
+  <dl class="meta">
+    <dt>Served by</dt><dt>Store</dt>
+    <dd title="{{ host }}">{{ host }}</dd><dd>redis · key "visits"</dd>
+  </dl>
+</main>
+<script>
+const count = document.getElementById("count");
+const sub = document.getElementById("sub");
+const button = document.getElementById("add");
+const status = document.getElementById("status");
+const statusText = document.getElementById("status-text");
+
+function show(n) {
+  count.textContent = n.toLocaleString();
+  sub.textContent = `You are visitor #${n.toLocaleString()}.`;
+  count.classList.remove("bump");
+  void count.offsetWidth;
+  count.classList.add("bump");
+}
+
+function down() {
+  status.classList.add("down");
+  statusText.textContent = "Redis unavailable";
+}
+
+button.addEventListener("click", async () => {
+  button.disabled = true;
+  try {
+    const res = await fetch("/api/visits", { method: "POST" });
+    if (!res.ok) throw new Error();
+    show((await res.json()).visits);
+    status.classList.remove("down");
+    statusText.textContent = "Redis connected";
+  } catch {
+    down();
+  } finally {
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

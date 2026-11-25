@@ -1,0 +1,29 @@
+services:
+  redis-server:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  python-app:
+    build:
+      context: app
+    environment:
+      REDIS_SERVER: "redis://redis-server:6379"
+      BINDING_ADDRESS: "0.0.0.0"
+      SERVER_PORT: "8081"
+    ports:
+      - "4001:8081"
+    depends_on:
+      redis-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:
